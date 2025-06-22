@@ -8,7 +8,7 @@ import { marked } from 'marked';
 import TurndownService from 'turndown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { FiCopy, FiCheck, FiBook, FiSave, FiUpload } from 'react-icons/fi';
+import { FiCopy, FiCheck, FiBook, FiSave, FiUpload, FiVolume2, FiVolumeX } from 'react-icons/fi';
 import { format, formatDistanceToNow } from 'date-fns'; 
 import './App.css';
 
@@ -47,7 +47,7 @@ const GrammarChecker = () => {
     return saved ? JSON.parse(saved) : [];
   });
 const [activeSession, setActiveSession] = useState(null);
-
+const [isSpeaking, setIsSpeaking] = useState(false);
 
   // Debounce function to limit API calls
   const debounce = (func, delay) => {
@@ -233,6 +233,7 @@ saveToHistory(text);
   });
 
   setRewrittenText(correctedText);
+  speakText(correctedText);
 };
 
 const getConfidenceLevel = (match) => {
@@ -572,6 +573,55 @@ const loadSession = (session) => {
     setText(adjustedText);
   };
 
+  const speakText = (textToSpeak) => {
+  // Check if speech synthesis is supported
+  if ('speechSynthesis' in window) {
+    // Stop any ongoing speech
+    window.speechSynthesis.cancel();
+    
+    // Create a new speech utterance
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    
+    // Configure voice options
+    utterance.rate = 1.0; // Speaking rate (0.1 to 10)
+    utterance.pitch = 1.0; // Pitch (0 to 2)
+    utterance.volume = 1.0; // Volume (0 to 1)
+    
+    // Select a voice (optional)
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(voice => 
+      voice.name.includes('English') && voice.lang.includes('en')
+    );
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+    
+    // Speak the text
+    window.speechSynthesis.speak(utterance);
+  } else {
+    console.warn('Text-to-speech not supported in this browser');
+    // Fallback: Show a message or use a third-party service
+  }
+};
+
+useEffect(() => {
+  // Update speaking state based on speech events
+  const handleStart = () => setIsSpeaking(true);
+  const handleEnd = () => setIsSpeaking(false);
+
+  window.speechSynthesis.addEventListener('start', handleStart);
+  window.speechSynthesis.addEventListener('end', handleEnd);
+  window.speechSynthesis.addEventListener('error', handleEnd);
+
+  return () => {
+    window.speechSynthesis.removeEventListener('start', handleStart);
+    window.speechSynthesis.removeEventListener('end', handleEnd);
+    window.speechSynthesis.removeEventListener('error', handleEnd);
+  };
+}, []);
+
+
+
   return (
     <div className="app-container">
       <h1>Grammar Checker</h1>
@@ -823,6 +873,33 @@ const loadSession = (session) => {
       className="discard-rewrite"
     >
       Discard
+    </button>
+  </div>
+)}
+{rewrittenText && (
+  <div className="speech-controls">
+    <button 
+      onClick={() => speakText(rewrittenText)}
+      disabled={isSpeaking}
+      className="speak-button"
+    >
+      {isSpeaking ? (
+        <>
+          <FiVolume2 /> Speaking...
+        </>
+      ) : (
+        <>
+          <FiVolume2 /> Listen to Rewritten Text
+        </>
+      )}
+    </button>
+    
+    <button 
+      onClick={() => window.speechSynthesis.cancel()}
+      disabled={!isSpeaking}
+      className="stop-speech-button"
+    >
+      <FiVolumeX /> Stop
     </button>
   </div>
 )}
